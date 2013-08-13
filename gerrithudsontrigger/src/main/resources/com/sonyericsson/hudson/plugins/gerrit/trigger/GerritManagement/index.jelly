@@ -22,25 +22,6 @@
             </ul>
             <a href="new"> Add New Server </a>
 
-    <!--
-            <f:form method="post" action="configSubmit" name="config">
-            
-            div(style: "margin-top: 10px; margin-bottom: 10px;") {
-      a(style: "font-weight: bold; "
-                + "font-size: larger; "
-                + "padding-left: 30px; "
-                + "min-height: 30px; "
-                + "padding-top: 5px; "
-                + "padding-bottom: 5px; "
-                + "background-image: url( \'" + newImageUrl + "\'); "
-                + "background-position: left center; "
-                + "background-repeat: no-repeat;",
-        href: "new",
-        alt: _("New")) {text(_("Create new"))}
-      }
-            
-            </f:form>
-    -->
         </l:main-panel>
     </l:layout>
 </j:jelly>

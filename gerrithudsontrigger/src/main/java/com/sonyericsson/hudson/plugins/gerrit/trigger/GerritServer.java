@@ -73,6 +73,7 @@ import com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.WatchTimeExc
 import com.sonyericsson.hudson.plugins.gerrit.trigger.config.Config;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.config.IGerritHudsonTriggerConfig;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritConnectionListener;
+import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.UnreviewedPatchesListener;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritTrigger;
 
 /**
@@ -85,7 +86,7 @@ import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritTrigge
  * @author Mathieu Wang &lt;mathieu.wang@ericsson.com&gt;
  *
  */
-public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer> {
+public class GerritServer implements Describable<GerritServer> {
     private static final Logger logger = LoggerFactory.getLogger(GerritServer.class);
     private static final String START_SUCCESS = "Connection started";
     private static final String START_FAILURE = "Error establising conection";
@@ -98,6 +99,7 @@ public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer>
     private transient GerritHandler gerritEventManager;
     private transient GerritConnection gerritConnection;
     private transient GerritProjectListUpdater projectListUpdater;
+    private transient UnreviewedPatchesListener unreviewedPatchesListener;
     private IGerritHudsonTriggerConfig config;
     private transient GerritConnectionListener gerritConnectionListener;
     private static final String NEW_SERVER = "New";
@@ -107,12 +109,6 @@ public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer>
     public DescriptorImpl getDescriptor() {
         return Hudson.getInstance().getDescriptorByType(DescriptorImpl.class);
     }
-//
-//    @Override
-//    public Object getTarget() {
-//        Hudson.getInstance().checkPermission(Hudson.ADMINISTER);
-//        return this;
-//    }
 
     /**
      * Convenience method for jelly to get url of this server's config page relative to root.
@@ -204,6 +200,9 @@ public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer>
         gerritEventManager = new GerritHandler(config.getNumberOfReceivingWorkerThreads(), config.getGerritEMail());
 
         initializeConnectionListener();
+
+        //Starts unreviewed patches listener
+        unreviewedPatchesListener = new UnreviewedPatchesListener(name);
         logger.info(name + " started");
     }
 
@@ -231,6 +230,12 @@ public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer>
         } catch (InterruptedException ie) {
             logger.error("project list updater of " + name + "interrupted", ie);
         }
+
+        if (unreviewedPatchesListener != null) {
+            unreviewedPatchesListener.shutdown();
+            unreviewedPatchesListener = null;
+        }
+
         if (gerritConnection != null) {
             gerritConnection.shutdown(false);
             gerritConnection = null;
