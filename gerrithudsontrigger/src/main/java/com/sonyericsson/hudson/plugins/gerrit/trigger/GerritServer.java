@@ -29,17 +29,12 @@ import static com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.Watch
 import static com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.WatchTimeExceptionData.Time.MAX_MINUTE;
 import static com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.WatchTimeExceptionData.Time.MIN_HOUR;
 import static com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.WatchTimeExceptionData.Time.MIN_MINUTE;
-import static com.sonyericsson.hudson.plugins.gerrit.trigger.utils.StringUtil.PLUGIN_IMAGES_URL;
 import hudson.Extension;
 import hudson.model.AbstractProject;
-import hudson.model.AdministrativeMonitor;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
 import hudson.model.Hudson;
-import hudson.model.ManagementLink;
-//import hudson.model.Saveable;
 import hudson.util.FormValidation;
-import hudson.util.FormValidation.Kind;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,12 +47,10 @@ import java.util.List;
 
 import javax.servlet.ServletException;
 
-import jenkins.model.Jenkins;
-
 import net.sf.json.JSONObject;
 //import org.junit.experimental.theories.Theory;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerProxy;
+//import org.kohsuke.stapler.StaplerProxy;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.slf4j.Logger;
@@ -79,7 +72,6 @@ import com.sonyericsson.hudson.plugins.gerrit.gerritevents.ssh.SshUtil;
 import com.sonyericsson.hudson.plugins.gerrit.gerritevents.watchdog.WatchTimeExceptionData;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.config.Config;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.config.IGerritHudsonTriggerConfig;
-import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritAdministrativeMonitor;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritConnectionListener;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritTrigger;
 
@@ -93,7 +85,7 @@ import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritTrigge
  * @author Mathieu Wang &lt;mathieu.wang@ericsson.com&gt;
  *
  */
-public class GerritServer implements StaplerProxy, Describable<GerritServer> {
+public class GerritServer implements/* StaplerProxy,*/ Describable<GerritServer> {
     private static final Logger logger = LoggerFactory.getLogger(GerritServer.class);
     private static final String START_SUCCESS = "Connection started";
     private static final String START_FAILURE = "Error establising conection";
@@ -110,47 +102,27 @@ public class GerritServer implements StaplerProxy, Describable<GerritServer> {
     private transient GerritConnectionListener gerritConnectionListener;
     private static final String NEW_SERVER = "New";
 
-    /**
-     * Get the name of the server.
-     *
-     * @return name the name of the server.
-     */
-    public String getIconFileName() {
-        return PLUGIN_IMAGES_URL + "icon.png";
-    }
-
-    /**
-     * Get the UrlName.
-     *
-     * @return the UrlName.
-     */
-    public String getUrlName() {
-        return "gerrit-trigger";
-    }
-
-    /**
-     * Get the DisplayName.
-     *
-     * @return the DisplayName.
-     */
-    public String getDisplayName() {
-        return Messages.DisplayName();
-    }
-
-    /**
-     * Get the description.
-     *
-     * @return PluginDescription.
-     */
-    public String getDescription() {
-        return Messages.PluginDescription();
-    }
 
     @Override
     public DescriptorImpl getDescriptor() {
         return Hudson.getInstance().getDescriptorByType(DescriptorImpl.class);
     }
+//
+//    @Override
+//    public Object getTarget() {
+//        Hudson.getInstance().checkPermission(Hudson.ADMINISTER);
+//        return this;
+//    }
 
+    /**
+     * Convenience method for jelly to get url of this server's config page relative to root.
+     * @link {@link GerritManagement#getUrlName()}.
+     *
+     * @return the relative url
+     */
+    public String getUrl() {
+        return GerritManagement.get().getUrlName() + "/server/" + name;
+    }
     /**
      * Constructor.
      *
@@ -512,75 +484,9 @@ public void doConfigSubmit(StaplerRequest req, StaplerResponse rsp) throws Servl
         logger.debug("submit {}", req.toString());
     }
     JSONObject form = req.getSubmittedForm();
-    JSONObject dropdown = form.getJSONObject("dropdown");
+    config.setValues(form);
 
-    PluginImpl plugin = PluginImpl.getInstance();
-
-    /*
-     * Multiple dropdownListBlock causes the key to be empty.
-     * This is a known bug as referenced at:
-     *
-     * https://issues.jenkins-ci.org/browse/JENKINS-7517?page=
-     * com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel
-     *
-     * As such we have to use the empty key and check the
-     * corresponding value to determine which server we are configuring.
-     */
-    ArrayList<GerritServer> servers = plugin.getServers();
-    if (form.getString("").equals(NEW_SERVER)) { //"New.." has been selected in the dropdown list
-        String newServerName = dropdown.getString("name");
-        if (!serverListContainsName(newServerName)) {
-            GerritServer server = new GerritServer(newServerName);
-            servers = plugin.addServer(server);
-            name = newServerName;
-            server.start();
-        }
-    } else { //An existing server has been selected in the dropdown list
-        name = form.getString("");
-        if (dropdown.getBoolean("removeServer")) { //"remove server" option is checked
-            GerritServer server = plugin.getServer(name);
-            List<AbstractProject> configuredJobs = server.getConfiguredJobs();
-
-            if (configuredJobs.isEmpty()) { //No job has selected this server, remove safely.
-                server.stopConnection();
-                server.stop();
-                servers = plugin.removeServer(server);
-            } else { //Display error message and the names of the jobs selecting this server.
-                StringBuilder sb = new StringBuilder();
-                sb.append("Cannot remove server; configured in the following jobs:\n");
-                String rootURL = Jenkins.getInstance().getRootUrl();
-                if (rootURL != null) {
-                    for (AbstractProject job : configuredJobs) {
-                        sb.append("<div>");
-                        sb.append("<a href=");
-                        sb.append(rootURL);
-                        sb.append(job.getUrl());
-                        sb.append("configure>");
-                        sb.append(job.getName());
-                        sb.append("</a>");
-                        sb.append("</div>");
-                    }
-                } else {
-                    sb.append("(Links disabled because root URL is not set in Manage Jenkins > Configure System)\n");
-                    for (AbstractProject job : configuredJobs) {
-                        sb.append("<div>");
-                        sb.append(job.getName());
-                        sb.append("</div>");
-                    }
-                }
-                throw FormValidation.respond(Kind.ERROR, sb.toString());
-            }
-        } else {
-            for (GerritServer s : servers) {
-                if (s.getName().equals(name)) {
-                    s.getConfig().setValues(dropdown);
-                }
-            }
-        }
-    }
-    plugin.setServers(servers);
-    plugin.save();
-
+    PluginImpl.getInstance().save();
     rsp.sendRedirect(".");
 }
 
@@ -819,7 +725,7 @@ public FormValidation doValidTimeCheck(
 public FormValidation doNameFreeCheck(
         @QueryParameter("value")
         final String value) {
-    if (serverListContainsName(value)) {
+    if (PluginImpl.getInstance().containsServer(value)) {
         return FormValidation.error("The server name " + value + " is already in use!");
     } else {
         return FormValidation.ok();
@@ -827,118 +733,12 @@ public FormValidation doNameFreeCheck(
 }
 
 /**
- * Checks whether a server other than "New" is chosen in the dropdown.
- * Used by jelly to hide control box when adding new server.
- * @return whether a valid server is chosen.
- */
-public boolean isValidServerChosen() {
-    //TODO: get the value of "selectedServer" from the dropdown json object to actually make this method work.
-    return !name.equals(NEW_SERVER);
-}
-
-@Override
-public Object getTarget() {
-    Hudson.getInstance().checkPermission(Hudson.ADMINISTER);
-    return this;
-}
-
-/**
- * saves and throws exception if any.
- *
- */
-public void save() {
-    logger.debug("SAVE!!!");
-}
-
-/**
- * Returns this singleton.
- * @return the single loaded instance if this class.
- */
-public static GerritManagement get() {
-    return ManagementLink.all().get(GerritManagement.class);
-}
-
-/**
- * Get the config of a server.
- *
- * @param serverName the name of the server for which we want to get the config.
- * @return the config.
- * @see GerritServer#getConfig()
- */
-public static IGerritHudsonTriggerConfig getConfig(String serverName) {
-    return PluginImpl.getInstance().getServer(serverName).getConfig();
-}
-
-/**
- * The AdministrativeMonitor related to Gerrit.
- * convenience method for the jelly page.
- *
- * @return the monitor if it could be found, or null otherwise.
- */
-@SuppressWarnings("unused") //Called from Jelly
-public GerritAdministrativeMonitor getAdministrativeMonitor() {
-    for (AdministrativeMonitor monitor : AdministrativeMonitor.all()) {
-        if (monitor instanceof GerritAdministrativeMonitor) {
-            return (GerritAdministrativeMonitor)monitor;
-        }
-    }
-    return null;
-}
-
-/**
- * Get the list of Gerrit server names.
- *
- * @return the list of server names as an array.
- */
-public String[] getServerNames() {
-    ArrayList<String> names = new ArrayList<String>();
-    for (GerritServer s : PluginImpl.getInstance().getServers()) {
-        names.add(s.getName());
-    }
-    return names.toArray(new String[names.size()]);
-}
-
-/**
- * Check whether the list of servers contains a GerritServer object of a specific name.
- *
- * @param serverName to check.
- * @return whether the list contains a server with the given name.
- */
-private boolean serverListContainsName(String serverName) {
-    boolean contains = false;
-    for (GerritServer s : PluginImpl.getInstance().getServers()) {
-        if (s.getName().equals(serverName)) {
-            contains = true;
-        }
-    }
-    return contains;
-}
-
-/**
- * Get the selected server.
- *
- * @return the selected server as a String.
- */
-public String getSelectedServer() {
-    if (name == null) {
-        ArrayList<GerritServer> servers = PluginImpl.getInstance().getServers();
-        if (servers.isEmpty()) { //no server previously configured
-            name = NEW_SERVER;
-        } else { //at least one server previously configured, return the first one.
-            name = servers.get(0).getName();
-        }
-    }
-    return name;
-}
-
-/**
  * Generates a list of helper objects for the jelly view.
  *
- * @param serverName the name of the server for which we want to generate helper objects.
  * @return a list of helper objects.
  */
-public List<ExceptionDataHelper> generateHelper(String serverName) {
-    WatchTimeExceptionData data = getConfig(serverName).getExceptionData();
+public List<ExceptionDataHelper> generateHelper() {
+    WatchTimeExceptionData data = config.getExceptionData();
     List<ExceptionDataHelper> list = new LinkedList<ExceptionDataHelper>();
     list.add(new ExceptionDataHelper(Messages.MondayDisplayName(), Calendar.MONDAY, data));
     list.add(new ExceptionDataHelper(Messages.TuesdayDisplayName(), Calendar.TUESDAY, data));
@@ -949,5 +749,6 @@ public List<ExceptionDataHelper> generateHelper(String serverName) {
     list.add(new ExceptionDataHelper(Messages.SundayDisplayName(), Calendar.SUNDAY, data));
     return list;
 }
+
 }
 

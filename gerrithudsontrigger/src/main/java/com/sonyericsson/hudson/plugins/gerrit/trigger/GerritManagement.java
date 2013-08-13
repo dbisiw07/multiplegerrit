@@ -177,10 +177,8 @@ public class GerritManagement extends ManagementLink implements StaplerProxy, De
     */
     public GerritServer getServer(String serverName) {
         if (NEW_SERVER.equalsIgnoreCase(serverName)) {
-            logger.info("getting new server");
             return new GerritServer(NEW_SERVER);
         } else {
-            logger.info("getting server");
             return PluginImpl.getInstance().getServer(serverName);
         }
     }

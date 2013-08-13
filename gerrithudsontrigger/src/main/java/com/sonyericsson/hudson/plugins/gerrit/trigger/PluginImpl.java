@@ -161,6 +161,23 @@ public class PluginImpl extends Plugin {
         return servers;
     }
 
+
+    /**
+     * Check whether the list of servers contains a GerritServer object of a specific name.
+     *
+     * @param serverName to check.
+     * @return whether the list contains a server with the given name.
+     */
+    public boolean containsServer(String serverName) {
+        boolean contains = false;
+        for (GerritServer s : getServers()) {
+            if (s.getName().equals(serverName)) {
+                contains = true;
+            }
+        }
+        return contains;
+    }
+
     @Override
     public void start() throws Exception {
         logger.info("Starting Gerrit-Trigger Plugin");
@@ -182,6 +199,8 @@ public class PluginImpl extends Plugin {
                 defaultServer.setConfig(config);
                 servers.add(defaultServer);
             }
+            setServers(servers);
+            save();
         }
     }
 

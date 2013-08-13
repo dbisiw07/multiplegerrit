@@ -20,7 +20,7 @@
                     <li> <a href="server/${serverName}"> ${serverName} </a> </li>
                 </j:forEach>
             </ul>
-            <a href="server/new"> Create New Server </a>
+            <a href="new"> Add New Server </a>
 
     <!--
             <f:form method="post" action="configSubmit" name="config">
