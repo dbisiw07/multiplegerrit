@@ -25,6 +25,7 @@
 package com.sonyericsson.hudson.plugins.gerrit.trigger;
 
 import com.sonyericsson.hudson.plugins.gerrit.trigger.config.IGerritHudsonTriggerConfig;
+import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.GerritTrigger;
 import com.sonyericsson.hudson.plugins.gerrit.trigger.hudsontrigger.data.TriggerContextConverter;
 
 import hudson.Plugin;
@@ -39,6 +40,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 
 /**
@@ -178,6 +181,26 @@ public class PluginImpl extends Plugin {
             }
         }
         return contains;
+    }
+
+
+    /**
+     * Return the list of jobs configured with a server.
+     *
+     * @param serverName the name of the Gerrit server.
+     * @return the list of jobs configured with this server.
+     */
+    public List<AbstractProject> getConfiguredJobs(String serverName) {
+        LinkedList<AbstractProject> configuredJobs = new LinkedList<AbstractProject>();
+        for (AbstractProject<?, ?> project : Hudson.getInstance().getItems(AbstractProject.class)) { //get the jobs
+            GerritTrigger gerritTrigger = project.getTrigger(GerritTrigger.class);
+
+            //if the job has a gerrit trigger, check whether the trigger has selected this server:
+            if (gerritTrigger != null && gerritTrigger.getServerName().equals(serverName)) {
+                configuredJobs.add(project); //job has selected this server, add it to the list
+            }
+        }
+        return configuredJobs;
     }
 
     @Override

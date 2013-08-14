@@ -280,6 +280,16 @@ public class GerritTrigger extends Trigger<AbstractProject> implements GerritEve
     }
 
     /**
+     * Set the selected server.
+     *
+     * @param name the name of the newly selected server.
+     *
+     */
+    public void setServerName(String name) {
+        this.serverName = name;
+    }
+
+    /**
      * Finds the GerritTrigger in a project.
      *
      * @param project the project.

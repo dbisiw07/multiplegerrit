@@ -47,7 +47,10 @@ import java.util.List;
 
 import javax.servlet.ServletException;
 
+import jenkins.model.Jenkins;
+
 import net.sf.json.JSONObject;
+import org.jfree.util.Log;
 //import org.junit.experimental.theories.Theory;
 import org.kohsuke.stapler.QueryParameter;
 //import org.kohsuke.stapler.StaplerProxy;
@@ -111,6 +114,15 @@ public class GerritServer implements Describable<GerritServer> {
     }
 
     /**
+     * Convenience method for jelly to get url of the server list's page relative to root.
+     * @link {@link GerritManagement#getUrlName()}.
+     *
+     * @return the relative url
+     */
+    public String getParentUrl() {
+        return GerritManagement.get().getUrlName();
+    }
+    /**
      * Convenience method for jelly to get url of this server's config page relative to root.
      * @link {@link GerritManagement#getUrlName()}.
      *
@@ -154,25 +166,6 @@ public class GerritServer implements Describable<GerritServer> {
      */
     public String getName() {
         return name;
-    }
-
-    /**
-     * Return the list of jobs configured with this server.
-     * Used for blocking removal of a server from the list when some jobs still have listeners for that server.
-     *
-     * @return the list of jobs configured with this server.
-     */
-    public List<AbstractProject> getConfiguredJobs() {
-        ArrayList<AbstractProject> configuredJobs = new ArrayList<AbstractProject>();
-        for (AbstractProject<?, ?> project : Hudson.getInstance().getItems(AbstractProject.class)) { //get the jobs
-            GerritTrigger gerritTrigger = project.getTrigger(GerritTrigger.class);
-
-            //if the job has a gerrit trigger, check whether the trigger has selected this server:
-            if (gerritTrigger != null && gerritTrigger.getServerName().equals(name)) {
-                configuredJobs.add(project); //job has selected this server, add it to the list
-            }
-        }
-        return configuredJobs;
     }
 
     /**
@@ -224,11 +217,14 @@ public class GerritServer implements Describable<GerritServer> {
      */
     public void stop() {
         logger.info("Stopping GerritServer " + name);
-        projectListUpdater.shutdown();
-        try {
-            projectListUpdater.join();
-        } catch (InterruptedException ie) {
-            logger.error("project list updater of " + name + "interrupted", ie);
+        if (projectListUpdater != null) {
+            projectListUpdater.shutdown();
+            try {
+                projectListUpdater.join();
+            } catch (InterruptedException ie) {
+                logger.error("project list updater of " + name + "interrupted", ie);
+            }
+            projectListUpdater = null;
         }
 
         if (unreviewedPatchesListener != null) {
@@ -489,10 +485,49 @@ public void doConfigSubmit(StaplerRequest req, StaplerResponse rsp) throws Servl
         logger.debug("submit {}", req.toString());
     }
     JSONObject form = req.getSubmittedForm();
+
+    String newName = form.getString("name");
+    if (!name.equals(newName)) {
+        rename(newName);
+    }
     config.setValues(form);
 
     PluginImpl.getInstance().save();
-    rsp.sendRedirect(".");
+    rsp.sendRedirect(Jenkins.getInstance().getRootUrl() + "/gerrit-trigger");
+}
+
+/**
+ * Rename the server.
+ * Assumes that newName is different from current name.
+ *
+ * @param newName the new name
+ */
+private void rename(String newName) {
+    stopConnection();
+    stop();
+    String oldName = name;
+    name = newName;
+    changeSelectedServerInJobs(oldName);
+    start();
+    startConnection();
+}
+
+/**
+ * Change the selectedServer value in jobs to select the new name.
+ *
+ * @param oldName the old name of the Gerrit server
+ */
+private void changeSelectedServerInJobs(String oldName) {
+    for (AbstractProject job : PluginImpl.getInstance().getConfiguredJobs(oldName)) {
+        GerritTrigger trigger = (GerritTrigger)job.getTrigger(GerritTrigger.class);
+        trigger.setServerName(name);
+        try {
+            job.save();
+        } catch (IOException e) {
+            Log.error("Error saving configuration of job [" + job.getName()
+            + "] after Gerrit server has been renamed from [" + oldName + "] to [" + name + "]");
+        }
+    }
 }
 
 /**
@@ -503,11 +538,10 @@ public void doConfigSubmit(StaplerRequest req, StaplerResponse rsp) throws Servl
  */
 public void doConnectionSubmit(StaplerRequest req, StaplerResponse rsp) throws IOException {
 
-    GerritServer server = PluginImpl.getInstance().getServer(name);
     setConnectionResponse("");
     if (req.getParameter("button").equals("Start")) {
         try {
-            server.startConnection();
+            startConnection();
             //TODO wait for the connection to actually be established.
             //setConnectionResponse(START_SUCCESS);
         } catch (Exception ex) {
@@ -516,7 +550,7 @@ public void doConnectionSubmit(StaplerRequest req, StaplerResponse rsp) throws I
         }
     } else if (req.getParameter("button").equals("Stop")) {
         try {
-            server.stopConnection();
+            stopConnection();
             //TODO wait for the connection to actually be shutdown.
             //setConnectionResponse(STOP_SUCCESS);
         } catch (Exception ex) {
@@ -525,7 +559,7 @@ public void doConnectionSubmit(StaplerRequest req, StaplerResponse rsp) throws I
         }
     } else {
         try {
-            server.restartConnection();
+            restartConnection();
             //TODO wait for the connection to actually be shut down and connected again.
             //setConnectionResponse(RESTART_SUCCESS);
         } catch (Exception ex) {
@@ -730,7 +764,7 @@ public FormValidation doValidTimeCheck(
 public FormValidation doNameFreeCheck(
         @QueryParameter("value")
         final String value) {
-    if (PluginImpl.getInstance().containsServer(value)) {
+    if (!value.equals(name) && PluginImpl.getInstance().containsServer(value)) {
         return FormValidation.error("The server name " + value + " is already in use!");
     } else {
         return FormValidation.ok();
@@ -754,6 +788,5 @@ public List<ExceptionDataHelper> generateHelper() {
     list.add(new ExceptionDataHelper(Messages.SundayDisplayName(), Calendar.SUNDAY, data));
     return list;
 }
-
 }
 

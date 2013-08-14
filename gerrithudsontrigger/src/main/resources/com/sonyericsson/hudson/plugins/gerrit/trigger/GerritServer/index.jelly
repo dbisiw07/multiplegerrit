@@ -4,6 +4,7 @@
         <l:side-panel>
             <l:tasks>
                 <l:task icon="images/24x24/up.gif" href="${rootURL}/" title="${%Back to Dashboard}"/>
+                <l:task icon="images/24x24/up.gif" href="${it.parentUrl}/" title="${%Back to Server List}"/>
             </l:tasks>
         </l:side-panel>
         <l:main-panel>
@@ -11,12 +12,12 @@
             <j:set var="descriptor" value="${it.descriptor}"/>
             <j:set var="serverURL" value="${it.url}"/>
             <f:form method="post" action="configSubmit" name="config">
-                    <!--
                     <f:entry title="${%Name}"
                              help="/plugin/gerrit-trigger/help-GerritNewServerName.html">
-                        <f:textbox name="name" checkUrl="'${rootURL}/${serverURL}/nameFreeCheck?value='+escape(this.value)"/>
+                        <f:textbox name="name"
+                                   value="${it.name}"
+                                   checkUrl="'${rootURL}/${serverURL}/nameFreeCheck?value='+escape(this.value)"/>
                     </f:entry>
-                    -->
                     <f:entry title="${%Hostname}"
                              help="/plugin/gerrit-trigger/help-GerritHostname.html">
                         <f:textbox name="gerritHostName"
