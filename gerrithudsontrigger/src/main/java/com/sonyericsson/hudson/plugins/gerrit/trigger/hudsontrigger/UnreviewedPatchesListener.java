@@ -75,10 +75,26 @@ public class UnreviewedPatchesListener implements ConnectionListener {
         this.connected = PluginImpl.getInstance().getServer(name).addListener(this);
     }
 
+    /**
+     * checks for null pointer exception.
+     *
+     * @return an error message if there is null pointer exception.
+     */
+    private boolean configExist() {
+        if (PluginImpl.getInstance().getServer(serverName) == null) {
+            logger.error("server is not in the list");
+            return false;
+        }
+        if (PluginImpl.getInstance().getServer(serverName).getConfig() == null) {
+            logger.error("Server has no config");
+            return false;
+        }
+        return true;
+    }
     @Override
     public void connectionEstablished() {
         if (!connected) {
-            if (PluginImpl.getInstance() != null && PluginImpl.getInstance().getServer(serverName).getConfig() != null) {
+            if (configExist()) {
                 runUnreviewedPatchSets();
                 setConnected(true);
             }

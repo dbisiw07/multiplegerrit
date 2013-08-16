@@ -123,6 +123,19 @@ public class GerritConnectionListener implements ConnectionListener {
     }
 
     /**
+     * checks null pointer exception.
+     *
+     * @return the current Gerrit version as a String if connected, or null otherwise.
+     */
+    private String getVersionString() {
+        if (PluginImpl.getInstance().getServer(serverName) != null) {
+            return PluginImpl.getInstance().getServer(serverName).getGerritVersion();
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Checks the Gerrit version that we are connected to.
      * If it is a snapshot or if any features will be disabled because of this.
      * It should be called whenever we got some new connection status.
@@ -130,8 +143,7 @@ public class GerritConnectionListener implements ConnectionListener {
     public void checkGerritVersionFeatures() {
         if (connected) {
             GerritVersionNumber version =
-                    GerritVersionChecker.createVersionNumber(PluginImpl.getInstance().getServer(serverName).
-                            getGerritVersion());
+                    GerritVersionChecker.createVersionNumber(getVersionString());
             List<GerritVersionChecker.Feature> list = new LinkedList<GerritVersionChecker.Feature>();
             for (GerritVersionChecker.Feature f : GerritVersionChecker.Feature.values()) {
                 if (!GerritVersionChecker.isCorrectVersion(version, f)) {

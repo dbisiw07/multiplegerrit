@@ -500,12 +500,26 @@ public class GerritTrigger extends Trigger<AbstractProject> implements GerritEve
     }
 
     /**
+     * checks for null pointer exception.
+     *
+     * @return list of categories or null .
+     */
+    private List<VerdictCategory> getConfig() {
+         if (PluginImpl.getInstance().getServer(serverName) != null) {
+            return PluginImpl.getInstance().getServer(serverName).getConfig().getCategories();
+         } else {
+            logger.error("Categories does not exist");
+            return null;
+         }
+    }
+
+    /**
      * Fills the verdict category drop-down list for the comment-added events.
      * @return a ListBoxModel for the drop-down list.
      */
     public ListBoxModel doFillVerdictCategoryItems() {
         ListBoxModel m = new ListBoxModel();
-        List<VerdictCategory> list = PluginImpl.getInstance().getServer(serverName).getConfig().getCategories();
+        List<VerdictCategory> list = getConfig();
         for (VerdictCategory v : list) {
             m.add(v.getVerdictDescription(), v.getVerdictValue());
         }

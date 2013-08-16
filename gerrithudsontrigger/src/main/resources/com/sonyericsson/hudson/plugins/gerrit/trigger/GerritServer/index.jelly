@@ -81,7 +81,7 @@
                                       progress="${%Testing...}"
                                       method="testConnection"
                                       with="gerritHostName,gerritSshPort,gerritProxy,gerritUserName,gerritAuthKeyFile,gerritAuthKeyFilePassword"/>
-                </f:section>
+
                 <f:section title="${%Gerrit Reporting Values}">
                     <tr>
                         <td></td>
